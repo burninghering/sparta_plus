@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+    <title>스파르타코딩클럽 | 맛집 검색</title>
+
+<!--og태그와 파비콘-->
+    <meta property="og:title" content="스파르타 맛집 지도"/>
+    <meta property="og:description" content="mini project for Web Plus"/>
+    <meta property="og:image" content="{{ url_for('static', filename='og_image.jpg') }}"/>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
+
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+    <script type="text/javascript"
+            src="https://openapi.map.naver.com/openapi/v3/maps.js?ncpClientId=mtjbr1c0cc&submodules=geocoder"></script>
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+          integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+          crossorigin="anonymous">
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+            integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+            crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+            integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+            crossorigin="anonymous"></script>
+    <style>
+        .wrap {
+            width: 90%;
+            max-width: 750px;
+            margin: 0 auto;
+        }
+
+        .banner {
+            width: 100%;
+            height: 20vh;
+            background-image: url("../static/banner.jpg");
+            background-position: center;
+            background-size: contain;
+            background-repeat: repeat;
+
+        }
+
+        h1.title {
+            font-family: 'Jua', sans-serif;
+
+            color: white;
+            font-size: 3rem;
+        }
+
+        h5 {
+            font-family: 'Jua', sans-serif;
+        }
+
+        .matjip-list {
+            overflow: scroll;
+            width: 100%;
+            height: calc(20vh - 30px);
+            position: relative;
+        }
+
+        .card-title, .card-subtitle {
+            display: inline;
+        }
+
+        #map {
+            width: 100%;
+            height: 50vh;
+            margin: 20px auto 20px auto;
+        }
+
+        .iw-inner {
+            padding: 10px;
+            font-size: smaller;
+        }
+    </style>
+    <script>
+        let y_cen = 37.4981125   // lat
+        let x_cen = 127.0379399  // long
+        let map;
+        let markers = []; //네이버에서 약속한 맛집 리스트
+        let infowindows = [];
+
+        $(document).ready(function () {
+            map = new naver.maps.Map('map', {
+                center: new naver.maps.LatLng(y_cen, x_cen),
+                zoom: 12,
+                zoomControl: true,
+                zoomControlOptions: {
+                    style: naver.maps.ZoomControlStyle.SMALL,
+                    position: naver.maps.Position.TOP_RIGHT
+                }
+            });
+            get_matjips();
+        })
+
+        function make_card(i, matjip) {
+            let html_temp = `<div class="card" id="card-${i}">
+                        <div class="card-body">
+<!--                        a태그에 자바스크립트 추가-->
+                            <h5 class="card-title"><a href="javascript:click2center('${i}')" class="matjip-title">${matjip['title']}</a></h5>
+                            <h6 class="card-subtitle mb-2 text-muted">${matjip['category']}</h6>
+                            <p class="card-text">${matjip['address']}</p>
+                            <p class="card-text" style="color:blue;">${matjip['show']}</p>
+                        </div>
+                     </div>`;
+            $('#matjip-box').append(html_temp);
+        }
+
+        function get_matjips() {
+            $('#matjip-box').empty();
+            $.ajax({
+                type: "GET",
+                url: '/matjip',
+                data: {},
+                success: function (response) {
+                    console.log(response)
+                    let matjips = response["matjip_list"]
+                    for (let i = 0; i < matjips.length; i++) {
+                        let matjip = matjips[i]
+                        make_card(i, matjip);
+                        let marker = make_marker(matjip);
+                        add_info(i, marker, matjip);
+                    }
+                }
+            });
+        }
+
+        function make_marker(matjip) { //맛집 마커 여러개 만들기
+            let marker = new naver.maps.Marker({
+                position: new naver.maps.LatLng(matjip["mapy"], matjip["mapx"]),
+                map: map
+            });
+            markers.push(marker)
+            return marker
+        }
+
+        function add_info(i, marker, matjip) {
+            let html_temp = `<div class="iw-inner">
+                        <h5>${matjip['title']}</h5>
+                        <p>${matjip['address']}
+                        </div>`;
+            let infowindow = new naver.maps.InfoWindow({ //마커안에 내용 나오도록 네이버가 정해줌ㅁ
+                content: html_temp,
+                maxWidth: 200,
+                backgroundColor: "#fff",
+                borderColor: "#888",
+                borderWidth: 2,
+                anchorSize: new naver.maps.Size(15, 15),
+                anchorSkew: true,
+                anchorColor: "#fff",
+                pixelOffset: new naver.maps.Point(10, -10)
+            });
+            infowindows.push(infowindow)
+            naver.maps.Event.addListener(marker, "click", function (e) {
+                if (infowindow.getMap()) { //정보창 열려있을때
+                    infowindow.close(); //닫고..
+                } else {
+                    infowindow.open(map, marker);
+                    map.setCenter(infowindow.position); //정보창이 중앙에 오도록 해라
+
+                    $("#matjip-box").animate({ //맛집 모든 목록 리스트에 움직이는 효과를 줘라
+                        scrollTop: $("#matjip-box").get(0).scrollTop + $(`#card-${i}`).position().top //맛집 박스의 높이에서, 클릭한 i번째의 맛집의 높이까지 내려가라
+                    }, 2000);
+                }
+            });
+        }
+
+        function click2center(i) { //i번째 카드를 눌렀을 때 해당 정보창을 열고 닫는 기능
+            let marker = markers[i]
+            let infowindow = infowindows[i]
+            if (infowindow.getMap()) {
+                infowindow.close();
+            } else {
+                infowindow.open(map, marker);
+                map.setCenter(infowindow.position)
+            }
+        }
+    </script>
+
+</head>
+
+<body>
+<div class="wrap">
+    <div class="banner">
+        <div class="d-flex flex-column align-items-center"
+             style="background-color: rgba(0,0,0,0.5);width: 100%;height: 100%;">
+            <h1 class="title mt-5 mb-2">스파르타 맛집 지도</h1>
+        </div>
+    </div>
+    <div id="map"></div>
+
+    <div class="matjip-list" id="matjip-box">
+        <div class="card" id="card-0">
+            <div class="card-body">
+                <!--                a태그 눌렀을 때 새창 뜨는게 아니라 자바스크립트 함수 실행하고 싶으면~-->
+                <h5 class="card-title"><a href="#" class="matjip-title">혼가츠</a></h5>
+                <h6 class="card-subtitle mb-2 text-muted">일식</h6>
+                <p class="card-text">서울 마포구 와우산로21길 36-6 (서교동)</p>
+                <p class="card-text" style="color:blue;">생방송 투데이</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+
+</html>
