@@ -1,3 +1,5 @@
+import math
+
 from pymongo import MongoClient
 import jwt
 import datetime
@@ -141,6 +143,189 @@ def get_posts():
     except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
         return redirect(url_for("home"))
 
+@app.route("/")
+def board_list():
+    # board = mongo.db.board
+    # board = db
+    # 페이지 값 (디폴트값 = 1)
+    page = request.args.get("page", 1, type=int)
+    # 한 페이지 당 몇 개의 게시물을 출력할 것인가
+    limit = 8
+
+    # datas = db.weling.find({}).skip((page - 1) * limit).limit(limit)  # board컬럭션에 있는 모든 데이터를 가져옴
+    datas = list(db.weling.find({}).skip((page - 1) * limit).limit(limit)) # board컬럭션에 있는 모든 데이터를 가져옴
+
+
+    # same_ages = list(db.weling.find({}, {'_id': False}))
+    # user = db.users.find_one({'name': 'bobby'})
+
+    # print(datas)
+
+    # 게시물의 총 개수 세기
+    # tot_count = board.find({}).count()
+    tot_count = db.weling.count()
+    # print(tot_count)
+
+
+    # 마지막 페이지의 수 구하기
+    last_page_num = math.ceil(tot_count / limit) # 반드시 올림을 해줘야함
+    # print(last_page_num)
+
+    #
+    # 페이지 블럭을 5개씩 표기
+    block_size = 5
+    # 현재 블럭의 위치 (첫 번째 블럭이라면, block_num = 0)
+    block_num = int((page - 1) / block_size)
+    # 현재 블럭의 맨 처음 페이지 넘버 (첫 번째 블럭이라면, block_start = 1, 두 번째 블럭이라면, block_start = 6)
+    block_start = (block_size * block_num) + 1
+    # 현재 블럭의 맨 끝 페이지 넘버 (첫 번째 블럭이라면, block_end = 5)
+    block_end = block_start + (block_size - 1)
+
+    # print(datas)
+    # print(limit)
+    # print(page)
+    # print(block_start)
+    # print(block_end)
+    # print(last_page_num)
+
+    return render_template("main.html", datas=datas, limit=limit, page=page, block_start=block_start, block_end=block_end, last_page_num=last_page_num)
+
+
+
+
+@app.route('/insert')
+def insert():
+    return render_template('insert_form.html')
+
+@app.route('/api/insert_form', methods=['POST'])
+def save_insert() :
+    datas = list(db.weling.find({}))
+    id = int(datas[-1]['id']) + 1
+    bool = request.form['bool']
+    date = request.form['date_give']
+    title = request.form['title_give']
+    roadaddress = request.form['roadaddress_give']
+    detailaddress = request.form['detailaddress_give']
+    postcode = request.form['postcode_give']
+    content = request.form['content_give']
+    doc = {
+        'id' : id,
+        'date' : date,
+        'title' : title,
+        'postcode' : postcode,
+        'roadaddress' : roadaddress,
+        'detailaddress' : detailaddress,
+        'content' : content
+    }
+
+    if bool == 'True' :
+        file = request.files['file_give']
+        extention = file.filename.split('.')[-1]
+        today = datetime.now()
+        mytime = today.strftime('%Y-%m-%d-%H-%M-%S')
+        filename = f'file-{mytime}'
+        save_to = f'static/{filename}.{extention}'
+        file.save(save_to)
+        doc.update({'file' : f'{filename}.{extention}'})
+    elif bool == 'False' :
+        filename = "sparta.png"
+        doc.update({'file' : filename})
+
+    db.weling.insert_one(doc)
+    return jsonify({'result' : 'success', 'msg' : '작성 완료'})
+
+
+@app.route("/api/detail/<int:id>", methods=['GET'])
+def read(id) :
+    datas=list(db.weling.find({}))
+    end=len(datas)
+    print(id)
+    print(list(db.weling.find({'id':id})))
+    data= list(db.weling.find({'id':id}))[0]
+    index=datas.index(data)
+    next_index = index +1
+    prev_index = index -1
+    if next_index > end-1 :
+        next_index = 0
+    next_data_id= datas[next_index]['id']
+    prev_data_id=datas[prev_index]['id']
+    return render_template("detail.html", data=data, next_id=next_data_id, prev_id=prev_data_id)
+
+@app.route("/api/update/<int:id>", methods=['GET'])
+def update(id):
+    data = list(db.weling.find({'id' : id}))[0]
+    return render_template("update.html",data=data)
+
+
+
+@app.route("/api/update-upload", methods=['POST'])
+def update_upload() :
+    bool = request.form['bool']
+    file_name = request.form['file_name']
+    print(file_name)
+    date = request.form['date_give']
+    title = request.form['title_give']
+    roadaddress = request.form['roadaddress_give']
+    detailaddress = request.form['detailaddress_give']
+    postcode = request.form['postcode_give']
+    content = request.form['content_give']
+    doc = {
+        'date' : date,
+        'title' : title,
+        'postcode' : postcode,
+        'roadaddress' : roadaddress,
+        'detailaddress' : detailaddress,
+        'content' : content
+    }
+    print(doc)
+    if bool == 'True' :
+        file = request.files['file_give']
+        if file_name == 'sparta.png' :
+            extention = file.filename.split('.')[-1]
+            today = datetime.now()
+            mytime = today.strftime('%Y-%m-%d-%H-%M-%S')
+            filename = f'file-{mytime}'
+            save_to = f'static/{filename}.{extention}'
+            file.save(save_to)
+            doc.update({'file' : f'{filename}.{extention}'})
+        else :
+            save_to = f'static/{file_name}'
+            file.save(save_to)
+            doc.update({'file' : f'{file_name}'})
+
+    print(type(request.form['id']))
+    db.weling.update_one({'id' : int(request.form['id'])}, {'$set' : doc})
+    return jsonify({'result' : 'success', 'msg' : '수정 완료'})
+
+
+@app.route('/api/delete', methods=['DELETE'])
+def delete():
+    id_receive = request.form['id_give']
+    db.weling.delete_one({'id' : int(id_receive)})
+    return jsonify({'result': 'success', 'msg': '삭제 완료'})
+    # return render_template("main.html")
+
+
+@app.route('/api/comment-save', methods=['POST'])
+def comment_save():
+    comment_receive = request.form['comment_give']
+    date_receive = request.form['date_give']
+    return jsonify({'result' : 'success', 'msg' : comment_receive+date_receive})
+
+
+@app.route("/get_like", methods=['GET'])
+def get_like():
+    token_receive = request.cookies.get('mytoken')
+    try:
+        payload = jwt.decode(token_receive, SECRET_KEY, algorithms=['HS256'])
+        posts = list(db.likes.find({}))
+        for post in posts:
+            post["_id"] = str(post["_id"])  #문자열 변환
+            post["count_heart"] = db.likes.count_documents({"post_id": post["_id"], "type": "heart"}) #현재 좋아요 갯수
+            post["heart_by_me"] = bool(db.likes.find_one({"post_id": post["_id"], "type": "heart", "username": payload['id']})) #jwt에서 유저네임을 꺼내고,heart를 검색해서, 해당 글에 내 정보가 있으면
+        return jsonify({"result": "success","posts": posts})
+    except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
+        return redirect(url_for("/"))
 
 @app.route('/update_like', methods=['POST'])  # 라이크
 def update_like():
@@ -148,15 +333,15 @@ def update_like():
     try:
         payload = jwt.decode(token_receive, SECRET_KEY, algorithms=['HS256'])
         user_info = db.users.find_one({"username": payload["id"]})
-        post_id_receive = request.form["post_id_give"]  # 포스팅
-        type_receive = request.form["type_give"]  # 취소하는건지
-        action_receive = request.form["action_give"]  # 다시 실행하는건지
+        post_id_receive = db.weling.find_one({"post_id":id}) #위링 게시글 아이디
+        type_receive = request.form["type_give"]
+        action_receive = request.form["action_give"]
+
         doc = {
             "post_id": post_id_receive,
             "username": user_info["username"],
             "type": type_receive
         }
-
         if action_receive == "like":
             db.likes.insert_one(doc)
         else:
@@ -166,8 +351,7 @@ def update_like():
         return jsonify({"result": "success", 'msg': 'updated', "count": count})
 
     except (jwt.ExpiredSignatureError, jwt.exceptions.DecodeError):
-        return redirect(url_for("home"))
+        return redirect(url_for("/"))
 
-
-if __name__ == '__main__':
+if __name__ == '__main__' :
     app.run('0.0.0.0', port=5000, debug=True)
